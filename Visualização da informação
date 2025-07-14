@@ -1,0 +1,130 @@
+from google.colab import files
+uploaded = files.upload()
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+#link do dataser utilizado https://opendatasus.saude.gov.br/dataset/registro-de-ocupacao-hospitalar-covid-19/resource/a8dc8a3f-1f96-45d0-a8a8-c279af76300f
+
+sta = pd.read_csv('esus-vepi.LeitoOcupacao_2022.csv', delimiter=",")
+
+sta['total_leitos_ocupados'] = (sta['ocupacaoSuspeitoCli'].fillna(0) +
+                               sta['ocupacaoSuspeitoUti'].fillna(0) +
+                               sta['ocupacaoConfirmadoCli'].fillna(0) +
+                               sta['ocupacaoConfirmadoUti'].fillna(0) +
+                               sta['ocupacaoCovidUti'].fillna(0) +
+                               sta['ocupacaoCovidCli'].fillna(0) +
+                               sta['ocupacaoHospitalarUti'].fillna(0) +
+                               sta['ocupacaoHospitalarCli'].fillna(0))
+
+les = sta.groupby('estadoNotificacao')['total_leitos_ocupados'].sum().reset_index()
+
+sta_top5 = les.sort_values('total_leitos_ocupados', ascending=False).head(5)
+
+plt.figure(figsize=(10,5))
+sns.barplot(data=sta_top5, x='estadoNotificacao', y='total_leitos_ocupados', palette='viridis')
+plt.title('Top 5 estados com mais leitos ocupados em 2022')
+plt.xlabel('Estados')
+plt.ylabel('Leitos ocupados')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+from google.colab import files
+uploaded = files.upload()
+
+import pandas as pd
+import plotly.express as px
+
+sta = pd.read_csv('esus-vepi.LeitoOcupacao_2022.csv', delimiter=",")
+
+regioes = {
+    'Norte': ['Amazonas', 'Pará', 'Rondônia', 'Roraima', 'Tocantins', 'Acre', 'Amapá'],
+    'Nordeste': ['Alagoas', 'Bahia', 'Ceará', 'Maranhão', 'Paraíba', 'Pernambuco', 'Piauí', 'Rio Grande do Norte', 'Sergipe'],
+    'Centro-Oeste': ['Distrito Federal', 'Goiás', 'Mato Grosso', 'Mato Grosso do Sul'],
+    'Sudeste': ['Espírito Santo', 'Minas Gerais', 'Rio de Janeiro', 'São Paulo'],
+    'Sul': ['Paraná', 'Rio Grande do Sul', 'Santa Catarina']
+}
+
+def atribuir_regiao(estado):
+    for regiao, estados in regioes.items():
+        if estado in estados:
+            return regiao
+    return None
+
+sta['regiao'] = sta['estadoNotificacao'].apply(atribuir_regiao)
+sta = sta.dropna(subset=['regiao'])
+
+if 'total_leitos_ocupados' not in sta.columns:
+    sta['total_leitos_ocupados'] = (sta.filter(like='ocupacao').fillna(0).sum(axis=1))
+
+fig = px.sunburst(
+    sta,
+    path=['regiao', 'estadoNotificacao'],
+    values='total_leitos_ocupados',
+    title='Distribuição de Leitos Ocupados por Região e Estado (2022)',
+    color='regiao',
+    height=700
+)
+
+fig.show()
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+from google.colab import files
+uploaded = files.upload ()
+
+import pandas as pd
+import plotly.express as px
+from datetime import datetime
+
+
+sta = pd.read_csv('esus-vepi.LeitoOcupacao_2022.csv', delimiter=",")
+
+
+sta['dataNotificacao'] = pd.to_datetime(sta['dataNotificacao'])
+
+sta['mes'] = sta['dataNotificacao'].dt.month
+sta['ano'] = sta['dataNotificacao'].dt.year
+
+
+if 'total_leitos_ocupados' not in sta.columns:
+    sta['total_leitos_ocupados'] = sta.filter(like='ocupacao').fillna(0).sum(axis=1)
+
+
+dados_mensais = sta.groupby(['ano', 'mes'])['total_leitos_ocupados'].sum().reset_index()
+
+
+meses = {
+    1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr',
+    5: 'Mai', 6: 'Jun', 7: 'Jul', 8: 'Ago',
+    9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'
+}
+dados_mensais['mes_nome'] = dados_mensais['mes'].map(meses)
+dados_mensais['periodo'] = dados_mensais['mes_nome'] + '/' + dados_mensais['ano'].astype(str)
+
+fig = px.line(
+    dados_mensais,
+    x='periodo',
+    y='total_leitos_ocupados',
+    title='Variação Mensal de Leitos Ocupados (2022)',
+    labels={
+        'periodo': 'Mês/Ano',
+        'total_leitos_ocupados': 'Média de Leitos Ocupados'
+    },
+    markers=True,
+    text='total_leitos_ocupados'
+)
+
+
+fig.update_traces(texttemplate='%{text:.2f}M', textposition='top center')
+fig.update_layout(
+    xaxis_tickangle=-45,
+    hovermode='x unified',
+    yaxis_title='Leitos Ocupados',
+    xaxis_title=''
+)
+
+fig.show()
